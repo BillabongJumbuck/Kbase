@@ -38,11 +38,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	// Error mode: only allow 'e' to edit or quit
+	// Error mode: only allow quit
 	if m.Mode == ErrorMode {
-		if msg.String() == "e" {
-			return m, m.openEditor()
-		}
 		return m, nil
 	}
 
@@ -51,15 +48,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, m.copyToClipboard()
 
-	case "e":
-		return m, m.openEditor()
-
-	case "up", "k":
+	case "up":
 		if m.Cursor > 0 {
 			m.Cursor--
 		}
 
-	case "down", "j":
+	case "down":
 		if m.Cursor < len(m.FilteredCommands)-1 {
 			m.Cursor++
 		}

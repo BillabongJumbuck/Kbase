@@ -101,15 +101,5 @@ func (m Model) renderNormalView() string {
 		}
 	}
 
-	b.WriteString("\n\n")
-
-	// Status bar
-	statusText := "Ctrl+C: Copy | E: Edit | ↑/↓ or k/j: Navigate | Esc/Ctrl+Q: Quit"
-	if m.StatusMsg != "" {
-		b.WriteString(StatusBarSuccessStyle.Render(m.StatusMsg))
-	} else {
-		b.WriteString(StatusBarStyle.Render(statusText))
-	}
-
 	return b.String()
 }

@@ -35,7 +35,7 @@ func LoadCommands(path string) ([]model.Command, error) {
 func FilterByPlatform(commands []model.Command) []model.Command {
 	currentOS := runtime.GOOS
 	filtered := make([]model.Command, 0, len(commands))
-	
+
 	for _, cmd := range commands {
 		if len(cmd.Platform) == 0 {
 			// No platform restriction, include it
@@ -50,7 +50,7 @@ func FilterByPlatform(commands []model.Command) []model.Command {
 			}
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -123,7 +123,7 @@ func GetDefaultConfigPath() (string, error) {
 // GetAppConfigPath returns the platform-specific application config file path
 func GetAppConfigPath() (string, error) {
 	var configDir string
-	
+
 	switch runtime.GOOS {
 	case "windows":
 		// Windows: %APPDATA%\Kbase\config.yaml
@@ -151,7 +151,7 @@ func GetAppConfigPath() (string, error) {
 		}
 		configDir = filepath.Join(home, ".config", "Kbase")
 	}
-	
+
 	return filepath.Join(configDir, "config.yaml"), nil
 }
 
@@ -161,29 +161,29 @@ func LoadAppConfig() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// If config file doesn't exist, create default one
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		if err := InitAppConfig(configPath); err != nil {
 			return nil, fmt.Errorf("failed to initialize config: %w", err)
 		}
 	}
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-	
+
 	var config AppConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
-	
+
 	// Expand environment variables and home directory in paths
 	for i, path := range config.CommandPaths {
 		config.CommandPaths[i] = expandPath(path)
 	}
-	
+
 	return &config, nil
 }
 
@@ -194,61 +194,123 @@ func InitAppConfig(configPath string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	
+
 	// Get default command path
 	defaultCmdPath, err := GetDefaultConfigPath()
 	if err != nil {
 		return err
 	}
-	
+
 	// Create default config
 	defaultConfig := AppConfig{
 		CommandPaths: []string{defaultCmdPath},
 	}
-	
+
 	data, err := yaml.Marshal(defaultConfig)
 	if err != nil {
 		return err
 	}
-	
+
 	// Add comments to the YAML file
 	header := `# Kbase Application Configuration
 # This file defines where to load command data from
 
-# command_paths: List of paths to command YAML files
+# command_paths: List of paths to command YAML files or directories
 # You can specify multiple paths, and commands from all files will be loaded
+# - If a path is a file, it will be loaded directly
+# - If a path is a directory, all .yaml and .yml files in it will be loaded (non-recursive)
 # Paths support:
 #   - Absolute paths: /home/user/.config/kbase/commands.yaml
+#   - Directory paths: /home/user/.config/kbase/commands/
 #   - Home directory expansion: ~/.config/kbase/commands.yaml
 #   - Environment variables: $HOME/.config/kbase/commands.yaml
 
 `
-	
+
 	return os.WriteFile(configPath, append([]byte(header), data...), 0644)
 }
 
 // LoadAllCommands loads commands from all configured paths
+// Paths can be either files or directories
+// If a directory is specified, all .yaml and .yml files in it will be loaded
 func LoadAllCommands(config *AppConfig) ([]model.Command, error) {
 	var allCommands []model.Command
-	
+
 	for _, path := range config.CommandPaths {
-		// Initialize default config if needed for this path
-		if err := InitDefaultConfig(path); err != nil {
-			// Log warning but continue with other paths
-			fmt.Fprintf(os.Stderr, "Warning: failed to initialize %s: %v\n", path, err)
-			continue
-		}
-		
-		commands, err := LoadCommands(path)
+		info, err := os.Stat(path)
 		if err != nil {
-			// Log warning but continue with other paths
-			fmt.Fprintf(os.Stderr, "Warning: failed to load commands from %s: %v\n", path, err)
+			// If path doesn't exist, try to initialize it as a file
+			if os.IsNotExist(err) {
+				if err := InitDefaultConfig(path); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to initialize %s: %v\n", path, err)
+					continue
+				}
+				// Try to load it now
+				commands, err := LoadCommands(path)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to load commands from %s: %v\n", path, err)
+					continue
+				}
+				allCommands = append(allCommands, commands...)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "Warning: failed to access %s: %v\n", path, err)
 			continue
 		}
-		
+
+		if info.IsDir() {
+			// Load all YAML files from directory
+			commands, err := LoadCommandsFromDirectory(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load commands from directory %s: %v\n", path, err)
+				continue
+			}
+			allCommands = append(allCommands, commands...)
+		} else {
+			// Load single file
+			commands, err := LoadCommands(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load commands from %s: %v\n", path, err)
+				continue
+			}
+			allCommands = append(allCommands, commands...)
+		}
+	}
+
+	return allCommands, nil
+}
+
+// LoadCommandsFromDirectory loads all YAML files from a directory
+func LoadCommandsFromDirectory(dirPath string) ([]model.Command, error) {
+	var allCommands []model.Command
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // Skip subdirectories
+		}
+
+		// Check if file has .yaml or .yml extension
+		name := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".yaml") && !strings.HasSuffix(strings.ToLower(name), ".yml") {
+			continue
+		}
+
+		filePath := filepath.Join(dirPath, name)
+		commands, err := LoadCommands(filePath)
+		if err != nil {
+			// Log warning but continue with other files
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", filePath, err)
+			continue
+		}
+
 		allCommands = append(allCommands, commands...)
 	}
-	
+
 	return allCommands, nil
 }
 
@@ -256,7 +318,7 @@ func LoadAllCommands(config *AppConfig) ([]model.Command, error) {
 func expandPath(path string) string {
 	// Expand environment variables
 	path = os.ExpandEnv(path)
-	
+
 	// Expand home directory
 	if strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
@@ -264,31 +326,31 @@ func expandPath(path string) string {
 			path = filepath.Join(home, path[2:])
 		}
 	}
-	
+
 	return path
 }
 
 // FuzzyMatch checks if query matches cmd, desc, or tags
 func FuzzyMatch(cmd model.Command, query string) bool {
 	query = strings.ToLower(query)
-	
+
 	// Match against cmd
 	if strings.Contains(strings.ToLower(cmd.Cmd), query) {
 		return true
 	}
-	
+
 	// Match against desc
 	if strings.Contains(strings.ToLower(cmd.Desc), query) {
 		return true
 	}
-	
+
 	// Match against tags
 	for _, tag := range cmd.Tags {
 		if strings.Contains(strings.ToLower(tag), query) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -297,13 +359,13 @@ func FilterCommands(commands []model.Command, query string) []model.Command {
 	if query == "" {
 		return commands
 	}
-	
+
 	filtered := make([]model.Command, 0)
 	for _, cmd := range commands {
 		if FuzzyMatch(cmd, query) {
 			filtered = append(filtered, cmd)
 		}
 	}
-	
+
 	return filtered
 }
