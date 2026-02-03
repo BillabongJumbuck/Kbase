@@ -1,0 +1,66 @@
+- cmd: "kubectl get pods"
+  desc: "List all pods in namespace"
+  tags:
+    - "k8s"
+    - "container"
+  platform:
+    - "linux"
+    - "darwin"
+  examples:
+    - "kubectl get pods -n kube-system -o wide"
+    - "kubectl get pods --watch"
+
+- cmd: "docker ps -a"
+  desc: "List all containers"
+  tags:
+    - "docker"
+    - "container"
+
+- cmd: "git log --oneline --graph --all"
+  desc: "Show git commit graph"
+  tags:
+    - "git"
+    - "vcs"
+
+- cmd: "find . -name '*.go' -type f"
+  desc: "Find all Go files in current directory"
+  tags:
+    - "shell"
+    - "find"
+
+- cmd: "ps aux | grep <process>"
+  desc: "Search for running processes"
+  tags:
+    - "shell"
+    - "process"
+  platform:
+    - "linux"
+    - "darwin"
+
+- cmd: "netstat -tulpn"
+  desc: "Show listening ports and programs"
+  tags:
+    - "network"
+    - "debug"
+  platform:
+    - "linux"
+
+- cmd: "curl -X GET https://api.example.com/data"
+  desc: "Make HTTP GET request"
+  tags:
+    - "http"
+    - "api"
+  examples:
+    - "curl -X POST -H 'Content-Type: application/json' -d '{\"key\":\"value\"}' https://api.example.com/data"
+
+- cmd: "tar -czvf archive.tar.gz /path/to/directory"
+  desc: "Create compressed tar archive"
+  tags:
+    - "shell"
+    - "archive"
+
+- cmd: "ssh user@hostname"
+  desc: "Connect to remote server via SSH"
+  tags:
+    - "ssh"
+    - "network"
