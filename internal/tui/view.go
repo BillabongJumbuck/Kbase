@@ -16,15 +16,15 @@ func (m Model) View() string {
 // renderErrorView renders the error state view
 func (m Model) renderErrorView() string {
 	var b strings.Builder
-	
+
 	errorMsg := ErrorStyle.Render(
 		fmt.Sprintf("⚠ Parsing Failed\n\n%v\n\nPress 'e' to edit config or Esc to quit", m.ParseError),
 	)
-	
+
 	b.WriteString("\n")
 	b.WriteString(errorMsg)
 	b.WriteString("\n")
-	
+
 	return b.String()
 }
 
@@ -60,7 +60,7 @@ func (m Model) renderNormalView() string {
 	// Render command list
 	for i := start; i < end && i < len(m.FilteredCommands); i++ {
 		cmd := m.FilteredCommands[i]
-		
+
 		// Truncate description for list view
 		desc := cmd.Desc
 		maxDescLen := 50
@@ -89,7 +89,7 @@ func (m Model) renderNormalView() string {
 	// Show detail/examples for selected item
 	if len(m.FilteredCommands) > 0 && m.Cursor < len(m.FilteredCommands) {
 		selected := m.FilteredCommands[m.Cursor]
-		
+
 		if len(selected.Examples) > 0 {
 			b.WriteString("\n")
 			detailContent := fmt.Sprintf("Examples:\n%s", strings.Join(selected.Examples, "\n"))

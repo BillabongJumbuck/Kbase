@@ -10,39 +10,35 @@ import (
 )
 
 func main() {
-	// Get config path
-	configPath, err := getConfigPath()
+	// Load application configuration
+	appConfig, err := config.LoadAppConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting config path: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error loading app config: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Initialize default config if needed
-	if err := config.InitDefaultConfig(configPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing config: %v\n", err)
-		os.Exit(1)
-	}
+	// Load commands from all configured paths
+	commands, loadErr := config.LoadAllCommands(appConfig)
 
-	// Load commands
-	commands, loadErr := config.LoadCommands(configPath)
+	// Get first command path for editing (backward compatibility)
+	var editPath string
+	if len(appConfig.CommandPaths) > 0 {
+		editPath = appConfig.CommandPaths[0]
+	} else {
+		// Fallback to default path if no paths configured
+		editPath, err = config.GetDefaultConfigPath()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting default config path: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	// Create and run the TUI application
-	m := tui.NewModel(configPath, commands, loadErr)
+	m := tui.NewModel(editPath, commands, loadErr)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running app: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-// getConfigPath returns the config file path from args or default location
-func getConfigPath() (string, error) {
-	// Check for command-line argument
-	if len(os.Args) > 1 {
-		return os.Args[1], nil
-	}
-
-	// Use default path
-	return config.GetDefaultConfigPath()
 }

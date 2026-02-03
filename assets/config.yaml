@@ -1,0 +1,17 @@
+# Kbase Application Configuration
+# This file defines where to load command data from
+
+# command_paths: List of paths to command YAML files
+# You can specify multiple paths, and commands from all files will be loaded
+# Paths support:
+#   - Absolute paths: C:\Users\YourName\.config\kbase\commands.yaml
+#   - Home directory expansion: ~/.config/kbase/commands.yaml
+#   - Environment variables: $HOME/.config/kbase/commands.yaml
+#   - Multiple paths for organizing commands by category
+
+command_paths:
+  - ~/.config/kbase/commands.yaml
+  # Uncomment to add more command files:
+  # - ~/.config/kbase/docker-commands.yaml
+  # - ~/.config/kbase/git-commands.yaml
+  # - /path/to/team-shared/commands.yaml

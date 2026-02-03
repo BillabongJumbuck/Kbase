@@ -89,7 +89,7 @@ func (m *Model) copyToClipboard() tea.Cmd {
 
 	cmd := m.FilteredCommands[m.Cursor].Cmd
 	err := clipboard.WriteAll(cmd)
-	
+
 	if err != nil {
 		m.SetStatus("Clipboard not supported", 3*time.Second)
 		// Fallback: print to stdout on exit
@@ -97,7 +97,7 @@ func (m *Model) copyToClipboard() tea.Cmd {
 	} else {
 		m.SetStatus("Copied!", 2*time.Second)
 	}
-	
+
 	return nil
 }
 

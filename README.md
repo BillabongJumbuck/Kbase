@@ -10,6 +10,14 @@ Kbase 是一个本地优先的 TUI 命令知识库工具，使用 YAML 持久化
 ## 数据文件
 默认路径：~/.config/kbase/commands.yaml（可通过参数指定）
 
+## 配置文件
+应用配置文件位置（根据操作系统自动选择）：
+- **Windows**: `%APPDATA%\Kbase\config.yaml` (通常是 `C:\Users\{用户名}\AppData\Roaming\Kbase\config.yaml`)
+- **macOS**: `~/Library/Application Support/Kbase/config.yaml`
+- **Linux**: `~/.config/Kbase/config.yaml`
+
+配置文件支持自定义多个命令数据文件路径，程序启动时会从所有配置的路径加载命令数据。
+
 ## 项目结构
 ```
 Kbase/

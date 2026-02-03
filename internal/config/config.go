@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +10,11 @@ import (
 	"github.com/BillabongJumbuck/Kbase/internal/model"
 	"gopkg.in/yaml.v3"
 )
+
+// AppConfig represents the application configuration
+type AppConfig struct {
+	CommandPaths []string `yaml:"command_paths"` // List of paths to command YAML files
+}
 
 // LoadCommands reads and parses the YAML file, filters by platform, and returns commands
 func LoadCommands(path string) ([]model.Command, error) {
@@ -112,6 +118,154 @@ func GetDefaultConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".config", "kbase", "commands.yaml"), nil
+}
+
+// GetAppConfigPath returns the platform-specific application config file path
+func GetAppConfigPath() (string, error) {
+	var configDir string
+	
+	switch runtime.GOOS {
+	case "windows":
+		// Windows: %APPDATA%\Kbase\config.yaml
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", err
+			}
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		configDir = filepath.Join(appData, "Kbase")
+	case "darwin":
+		// macOS: ~/Library/Application Support/Kbase/config.yaml
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		configDir = filepath.Join(home, "Library", "Application Support", "Kbase")
+	default:
+		// Linux and others: ~/.config/Kbase/config.yaml
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		configDir = filepath.Join(home, ".config", "Kbase")
+	}
+	
+	return filepath.Join(configDir, "config.yaml"), nil
+}
+
+// LoadAppConfig loads the application configuration from the config file
+func LoadAppConfig() (*AppConfig, error) {
+	configPath, err := GetAppConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	
+	// If config file doesn't exist, create default one
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if err := InitAppConfig(configPath); err != nil {
+			return nil, fmt.Errorf("failed to initialize config: %w", err)
+		}
+	}
+	
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	
+	var config AppConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+	
+	// Expand environment variables and home directory in paths
+	for i, path := range config.CommandPaths {
+		config.CommandPaths[i] = expandPath(path)
+	}
+	
+	return &config, nil
+}
+
+// InitAppConfig creates a default application config file
+func InitAppConfig(configPath string) error {
+	// Create directory
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	
+	// Get default command path
+	defaultCmdPath, err := GetDefaultConfigPath()
+	if err != nil {
+		return err
+	}
+	
+	// Create default config
+	defaultConfig := AppConfig{
+		CommandPaths: []string{defaultCmdPath},
+	}
+	
+	data, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		return err
+	}
+	
+	// Add comments to the YAML file
+	header := `# Kbase Application Configuration
+# This file defines where to load command data from
+
+# command_paths: List of paths to command YAML files
+# You can specify multiple paths, and commands from all files will be loaded
+# Paths support:
+#   - Absolute paths: /home/user/.config/kbase/commands.yaml
+#   - Home directory expansion: ~/.config/kbase/commands.yaml
+#   - Environment variables: $HOME/.config/kbase/commands.yaml
+
+`
+	
+	return os.WriteFile(configPath, append([]byte(header), data...), 0644)
+}
+
+// LoadAllCommands loads commands from all configured paths
+func LoadAllCommands(config *AppConfig) ([]model.Command, error) {
+	var allCommands []model.Command
+	
+	for _, path := range config.CommandPaths {
+		// Initialize default config if needed for this path
+		if err := InitDefaultConfig(path); err != nil {
+			// Log warning but continue with other paths
+			fmt.Fprintf(os.Stderr, "Warning: failed to initialize %s: %v\n", path, err)
+			continue
+		}
+		
+		commands, err := LoadCommands(path)
+		if err != nil {
+			// Log warning but continue with other paths
+			fmt.Fprintf(os.Stderr, "Warning: failed to load commands from %s: %v\n", path, err)
+			continue
+		}
+		
+		allCommands = append(allCommands, commands...)
+	}
+	
+	return allCommands, nil
+}
+
+// expandPath expands ~ and environment variables in path
+func expandPath(path string) string {
+	// Expand environment variables
+	path = os.ExpandEnv(path)
+	
+	// Expand home directory
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+	
+	return path
 }
 
 // FuzzyMatch checks if query matches cmd, desc, or tags
